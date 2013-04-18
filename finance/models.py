@@ -17,7 +17,7 @@ class Node(object):
         self.accepted_coins = {}
         self.accounts = {}
 
-    def get_account(self, id):
+    def account(self, id):
         """Get an account instance at this node."""
         if not id in self.accounts:
             self.accounts[id] = Account(id=id, node=self)
@@ -45,6 +45,23 @@ class Account(object):
         self.coins[coin.id] = coin
         return coin
         
+    def capture(self, coin):
+        new = Coin(node=self.node, account=self,
+                   hc=coin.hc, uhc=coin.uhc, source=coin.id)
+        coin.hc = 0
+        coin.uhc = 0
+        self.coins[new.id] = new
+        return new
+        
+    def coin(self, id):
+        """Get a cached coin"""
+        return self.coins[id]
+        
+    def accept(self, coin):
+        """Get access to a coin"""
+        self.coins[coin.id] = Coin(id=coin.id, node=self.node, account=self,
+            hc=coin.hc, uhc=coin.uhc)
+        
     @property
     def value(self):
         return sum([c.value for c in self.coins.values()])
@@ -59,17 +76,34 @@ class Account(object):
 class Coin(object):
     """Coin contains an amount of HC."""
     
-    def __init__(self, node, account, hc=0, uhc=0):
+    def __init__(self, node, account, hc=0, uhc=0, id=None, source=None):
         self.node = node
         self.account = account
         self.hc = hc
         self.uhc = uhc
-        self.id = "".join(random.sample(chars, 50))
+        self.id = id or "".join(random.sample(chars, 50))
+        self.source = source
         self.approvals = {}
         
     def approve(self):
         for key in Node.network:
             pass
+        
+    def split(self, hc=0, uhc=0):
+        nval = float(hc) + float(uhc) / 1e6
+        if nval > self.value:
+            raise ValueError("Cannot split v{} from coin with v{} value".format(
+                new.value, self.value))
+        new = Coin(node=self.node, account=self.account, hc=hc, uhc=uhc)
+        xhc = self.hc - new.hc
+        xuhc = self.uhc - new.uhc
+        while xuhc < 0:
+            xhc -= 1
+            xuhc += 1e6
+        change = Coin(node=self.node, account=self.account, hc=xhc, uhc=xuhc)
+        self.hc = 0
+        self.uhc = 0
+        return new, change
         
     @property
     def value(self):
